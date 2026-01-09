@@ -36,7 +36,12 @@ jobs:
       - name: 'Setup Terraform'
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ env.TF_VERSION }}  
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # 4. Terraform Format Check
+      - name: 'Terraform Format Check'
+        run: terraform fmt -check -recursive
+        continue-on-error: true
 
       # 5. Terraform Init
       - name: 'Terraform Init'
@@ -56,7 +61,9 @@ jobs:
       - name: 'Terraform Plan'
         run: |
           echo "📋 Planning infrastructure changes..."
-          terraform plan -out=tfplan
+          terraform plan \
+            -var="sql_admin_password=${{ secrets.SQL_ADMIN_PASSWORD }}" \
+            -out=tfplan
           echo "✅ Plan complete!"
 
       # 8. Terraform Apply (só na main e push)
@@ -64,7 +71,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           echo "🚀 Applying infrastructure changes..."
-          echo "💾 Creating: SQL Server, Database, Storage Account..."
+          echo "💾 Creating: SQL Server, 3 SQL Databases, CosmosDB MongoDB, Storage Account..."
           terraform apply -auto-approve tfplan
           echo "✅ Data infrastructure deployed successfully!"
 
@@ -73,12 +80,22 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           echo "📊 Data Infrastructure Outputs:"
-          terraform output -json
           echo ""
-          echo "🔍 Important Resources:"
-          echo "SQL Server: $(terraform output -raw sql_server_fqdn)"
-          echo "Database: $(terraform output -raw sql_database_name)"
-          echo "Storage Account: $(terraform output -raw storage_account_name)"     
+          echo "🔍 SQL Server:"
+          echo "  FQDN: $(terraform output -raw sql_server_fqdn)"
+          echo ""
+          echo "📦 SQL Databases:"
+          echo "  - $(terraform output -raw db_orders_name) (ms-orders)"
+          echo "  - $(terraform output -raw db_ingredients_name) (ms-ingredients)"
+          echo "  - $(terraform output -raw db_customers_name) (ms-customers)"
+          echo ""
+          echo "🍃 CosmosDB MongoDB:"
+          echo "  Host: $(terraform output -raw cosmosdb_mongodb_host)"
+          echo "  Database: $(terraform output -raw cosmosdb_database_name)"
+          echo ""
+          echo "📁 Storage Account:"
+          echo "  Name: $(terraform output -raw storage_account_name)"
+          echo "  Blob Endpoint: $(terraform output -raw storage_account_primary_blob_endpoint)"
 
       # 10. Logout do Azure
       - name: 'Azure Logout'
